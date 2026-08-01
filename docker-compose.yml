@@ -1,0 +1,49 @@
+# Insight — root orchestration entrypoint.
+# See docs/ARCHITECTURE.md Part 13 for the full topology.
+#
+# App services (nginx, frontend, backend, workers, beat, mlflow, minio) are enabled as
+# their Dockerfiles land in deployment/docker/. Only infra services are active now so
+# Phase 1/2 development can start immediately.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: insight
+      POSTGRES_PASSWORD: insight
+      POSTGRES_DB: insight
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insight"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  #  minio:            # optional local S3-compatible object store (dev)
+  #    image: minio/minio:latest
+  #    command: server /data --console-address ":9001"
+  #    ports: ["9000:9000", "9001:9001"]
+  #    volumes: ["miniodata:/data"]
+
+  #  mlflow:           # experiment tracking (Phase 5)
+  #    image: ghcr.io/mlflow/mlflow:latest
+  #    command: mlflow server --host 0.0.0.0 --port 5000
+  #    ports: ["5000:5000"]
+  #    depends_on: [postgres]
+
+volumes:
+  pgdata:
+  #  miniodata:

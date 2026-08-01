@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "insight-backend"
+version = "0.1.0"
+description = "Insight — multimodal Agentic AI Research Assistant (backend)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.2",
+    "structlog>=24.1",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+    "PyJWT>=2.8",
+    "argon2-cffi>=23.1",
+    "email-validator>=2.1",
+    "boto3>=1.34",
+    "filetype>=1.2",
+    # --- RAG (Part 6) ---
+    "langchain>=0.3",
+    "langchain-community>=0.3",
+    "langchain-text-splitters>=0.3",
+    "llama-index-core>=0.12",
+    "sentence-transformers>=3.0",
+    "faiss-cpu>=1.12",
+    "google-genai>=1.0",
+    "PyMuPDF>=1.24",
+    "python-docx>=1.1",
+    "pypdf>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "ruff>=0.4",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

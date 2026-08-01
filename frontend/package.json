@@ -1,0 +1,13 @@
+{
+  "name": "insight-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Insight — multimodal Agentic AI Research Assistant (frontend)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -1,0 +1,2 @@
+# Insight — compose overlay: production.
+# Locks image tags, disables source mounts, adds resource limits. Phase 9.
