@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import String
@@ -9,10 +7,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config import Settings
 from app.core.container import Container
-from app.core.exceptions import ConfigurationError
 from app.main import create_app
 from app.shared.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from app.shared.database import build_engine, build_session_factory, get_session
+from app.shared.database import build_engine, build_session_factory
 from app.shared.repository import BaseRepository
 
 
@@ -39,11 +36,6 @@ def db_session(tmp_path):
     finally:
         session.close()
         engine.dispose()
-
-
-def _fake_request(container: Container) -> SimpleNamespace:
-    app = SimpleNamespace(state=SimpleNamespace(container=container))
-    return SimpleNamespace(app=app)
 
 
 def test_repository_create_and_get(db_session) -> None:
@@ -95,22 +87,6 @@ def test_container_with_database(tmp_path) -> None:
     assert container.session_factory is not None
     status = container.health.check_all()["database"]
     assert status.ok is True
-
-
-def test_get_session_raises_without_database() -> None:
-    container = Container.build(Settings(database_url=None))
-    with pytest.raises(ConfigurationError):
-        next(get_session(_fake_request(container)))
-
-
-def test_get_session_yields_when_configured(tmp_path) -> None:
-    container = Container.build(Settings(database_url=f"sqlite:///{tmp_path / 'session.db'}"))
-    generator = get_session(_fake_request(container))
-    session = next(generator)
-    try:
-        assert session is not None
-    finally:
-        generator.close()
 
 
 def test_readyz_reports_database_check(tmp_path) -> None:

@@ -6,10 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from app.core.exceptions import InvalidFileTypeError
+from app.core.exceptions import FileTooLargeError, InvalidFileTypeError
 from app.main import create_app
 from app.modules.uploads.validation import (
     ALLOWED_UPLOAD_TYPES,
+    validate_actual_size,
     validate_declared_upload,
     validate_file_contents,
 )
@@ -27,6 +28,15 @@ ZIP_BYTES = b"PK\x03\x04" + b"\x00" * 64
 
 @pytest.fixture
 def upload_settings(tmp_path) -> Settings:
+    return _settings(tmp_path)
+
+
+@pytest.fixture
+def small_cap_settings(tmp_path) -> Settings:
+    return _settings(tmp_path, upload_max_size_bytes=512)
+
+
+def _settings(tmp_path, **overrides) -> Settings:
     return Settings(
         app_name="insight-test",
         app_env="test",
@@ -37,15 +47,26 @@ def upload_settings(tmp_path) -> Settings:
         jwt_secret_key="test-secret-with-at-least-32-characters",
         storage_backend="local",
         storage_local_root=str(tmp_path / "storage"),
+        **overrides,
     )
+
+
+def _make_client(settings: Settings) -> TestClient:
+    app = create_app(settings)
+    assert app.state.container.engine is not None
+    Base.metadata.create_all(app.state.container.engine)
+    return TestClient(app)
 
 
 @pytest.fixture
 def client(upload_settings: Settings) -> TestClient:
-    app = create_app(upload_settings)
-    assert app.state.container.engine is not None
-    Base.metadata.create_all(app.state.container.engine)
-    with TestClient(app) as test_client:
+    with _make_client(upload_settings) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def small_cap_client(small_cap_settings: Settings) -> TestClient:
+    with _make_client(small_cap_settings) as test_client:
         yield test_client
 
 
@@ -124,6 +145,16 @@ def test_declared_validation_rejects_too_large() -> None:
             size_bytes=2048,
             max_size_bytes=1024,
         )
+    assert exc.value.status_code == 413
+
+
+def test_actual_size_validation_accepts_at_cap() -> None:
+    validate_actual_size(actual_size_bytes=1024, max_size_bytes=1024)
+
+
+def test_actual_size_validation_rejects_over_cap() -> None:
+    with pytest.raises(FileTooLargeError) as exc:
+        validate_actual_size(actual_size_bytes=2048, max_size_bytes=1024)
     assert exc.value.status_code == 413
 
 
@@ -242,6 +273,25 @@ def test_complete_rejects_spoofed_bytes(client: TestClient) -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 422
+    failed = client.get(
+        f"/api/v1/uploads/{result['upload_id']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert failed.json()["status"] == "failed"
+
+
+def test_complete_rejects_actual_size_over_cap(small_cap_client: TestClient) -> None:
+    """Declared size is a client claim; the cap is enforced on the real bytes."""
+    client = small_cap_client
+    token = _register(client)["access_token"]
+    result = _presign(client, token, filename="notes.txt", content_type="text/plain", size_bytes=100)
+    _put_bytes(client, result["storage_key"], b"x" * 1024, "text/plain")
+
+    response = client.post(
+        f"/api/v1/uploads/{result['upload_id']}/complete",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 413, response.text
     failed = client.get(
         f"/api/v1/uploads/{result['upload_id']}",
         headers={"Authorization": f"Bearer {token}"},
